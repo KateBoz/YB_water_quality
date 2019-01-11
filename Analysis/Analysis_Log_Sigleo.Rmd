@@ -1,0 +1,186 @@
+---
+title: "Sigleo & Bosley Yaquina Bay Study"
+author: "Katelyn Bosley"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output: html_document
+subtitle: Data Analysis Log
+geometry: margin=1in
+---
+
+```{r,echo = F, warning = F, comment = F, message=F}
+#setting global options for the analysis log
+library(knitr)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=70),tidy=TRUE, fig.width=6,
+fig.height=5, warning=FALSE, message=FALSE)
+
+# When tables are made no comments
+options(xtable.comment = FALSE)
+```
+
+```{r,echo = F, warning = F, comment = F, message=F}
+
+#set the working directory
+setwd("E:\\Sigleo_Bosley_MS\\Analysis")
+
+dat<-read.csv("Y_iso_data_fixed.csv")
+
+# Load in packages needed for the analysis
+load.libraries<-function(){
+  library(ggplot2)
+  library(lme4)
+  library(dplyr)
+  library(GGally)
+}
+load.libraries()
+
+#########################################################################
+#build a custom theme for the plots
+cust_theme<-
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        legend.background = element_rect(fill="transparent"),
+        panel.border = element_rect(colour = "black"))+
+  #theme(legend.title = element_blank())+
+  theme(strip.text.x = element_text(size = 10, colour = "black", face="bold"))
+###########################################################################
+
+
+# Fix up the station codes
+dat$Station_alt<-as.factor(dat$Station_alt)
+#unique(dat$Station_alt)
+
+```
+ \
+ \
+ \
+
+###Step 1: Begin analysis with a matrix showing biplot of all the important variables to see if anything interesting emerges
+
+ \
+
+```{r,echo = F, warning = F, comment = F, message=F}
+
+#select the 
+mat.dat<-dat[,c(3,8,9,10,11,12,13,14)]
+
+#generate pdf with plots
+#pdf("YB_pairs.pdf",paper='letter') 
+ggpairs(mat.dat)
+#dev.off()
+```
+
+ \ 
+ \
+ \
+
+##2: Break the data into seasons.\
+Winter = Dec, Jan, Feb \
+Spring = March, Apr, May \
+Summer = June, July, Aug \
+Fall = Sept, Oct, Nov \
+
+ \ 
+ \ 
+ \
+ 
+ 
+```{r,echo = F, warning = F, comment = F, message=F}
+#divide the data by season
+dat$season=NA
+
+for(i in 1:nrow(dat)){
+if(dat$Month[i]=="12" || dat$Month[i]=='1'||dat$Month[i]=='2') {dat$season[i]="Winter"}
+  
+if(dat$Month[i]=="3" || dat$Month[i]=='4'||dat$Month[i]=='5') {dat$season[i]="Spring"}
+  
+if(dat$Month[i]=="6" || dat$Month[i]=='7'||dat$Month[i]=='8') {dat$season[i]="Summer"}
+  
+if(dat$Month[i]=="9" || dat$Month[i]=='10'||dat$Month[i]=='11') {dat$season[i]="Fall"}  
+  
+  }
+
+```
+
+\ 
+\
+\
+
+##3: Look at variation by inividual factor
+
+###Salinity
+```{r,echo = F, warning = F, comment = F, message=F}
+##########################
+#Salinity
+
+#build.df
+sal.df<-dat[,c("SampleID","Station_alt","Year","Month","Day","Salinity_ppt","season")]
+
+#calculate site means by month in each year
+sal.ag<-sal.df %>% group_by(Station_alt,Year)%>%summarize(SampleN=length(Salinity_ppt),mean_sal=mean(Salinity_ppt,na.rm=T),sd_sal=sd(Salinity_ppt, na.rm=T))
+#head(sal.ag)
+sal.ag$Year<-as.factor(sal.ag$Year)
+sal.ag<-na.omit(sal.ag)
+
+#make a nice plot!
+
+#salinity by location and year
+sal.p<-ggplot(sal.ag, aes(x=Station_alt,y=mean_sal,group=Year))+
+  geom_point(aes(col=Year, shape=Year),size = 3)+
+  geom_line(aes(col=Year),linetype = 2)+
+  scale_color_manual(name="Year", values = c("grey20","grey50","grey70"))+
+  ylab("Mean Salinity")+
+  xlab("Station ID")+
+  cust_theme+
+  ggtitle("Mean Annual Salinity")
+
+
+# add in the monthly variation
+#build.df
+sal.ag.mo<-sal.df %>% group_by(Station_alt,Year,Month)%>%summarize(SampleN=length(Salinity_ppt),mean_sal=mean(Salinity_ppt,na.rm=T))
+
+sal.ag.mo$Year<-as.factor(sal.ag.mo$Year)
+sal.ag.mo$Month<-as.factor(sal.ag.mo$Month)
+
+
+sal.mo.p<-ggplot(sal.ag.mo, aes(x=Station_alt,y=mean_sal,group=Month))+
+  geom_point(aes(col=Month),size = 3, shape=8)+
+  geom_line(aes(col=Month),linetype = 1,size=1.2)+
+  #scale_color_manual(name="Year", values = c("grey20","grey50","grey70"))+
+  ylab("Mean Salinity")+
+  xlab("Station ID")+
+  cust_theme+
+  ggtitle("Mean Monthly Salinity")+
+  facet_grid(Year~.)
+
+
+#Salinity by season
+
+# add in the monthly variation
+#build.df
+sal.ag.season<-sal.df %>% group_by(Station_alt,Year,season)%>%summarize(SampleN=length(Salinity_ppt),mean_sal=mean(Salinity_ppt,na.rm=T))
+
+sal.ag.season$Year<-as.factor(sal.ag.season$Year)
+sal.ag.season$season<-as.factor(sal.ag.season$season)
+
+
+sal.sea.p<-ggplot(sal.ag.season, aes(x=Station_alt,y=mean_sal,group=season))+
+  geom_point(aes(col=season),size = 3, shape=8)+
+  geom_line(aes(col=season),linetype = 1,size=1.2)+
+  #scale_color_manual(name="Year", values = c("grey20","grey50","grey70"))+
+  ylab("Mean Salinity")+
+  xlab("Station ID")+
+  cust_theme+
+  ggtitle("Mean Seasonal Salinity")+
+  facet_grid(Year~.)
+
+
+#generate the plots
+sal.p
+
+sal.mo.p
+
+sal.sea.p
+
+```
