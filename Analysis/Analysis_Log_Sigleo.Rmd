@@ -8,28 +8,29 @@ geometry: margin=1in
 ---
 
 ```{r,echo = F, warning = F, comment = F, message=F}
+
 #setting global options for the analysis log
 library(knitr)
 knitr::opts_chunk$set(tidy.opts=list(width.cutoff=70),tidy=TRUE, fig.width=6,
-fig.height=5, warning=FALSE, message=FALSE)
+fig.height=5, warning=FALSE, message=FALSE,fig.align = "center")
 
 # When tables are made no comments
 options(xtable.comment = FALSE)
-```
 
-```{r,echo = F, warning = F, comment = F, message=F}
-
-#set the working directory
-setwd("E:\\Sigleo_Bosley_MS\\Analysis")
-
-dat<-read.csv("Y_iso_data_fixed.csv")
 
 # Load in packages needed for the analysis
 load.libraries<-function(){
   library(ggplot2)
+  library(scales)
   library(lme4)
   library(dplyr)
   library(GGally)
+  library(reshape2)
+  library(gridExtra)
+  library(grid)
+  library(ggplot2)
+  library(lattice)
+  library(kableExtra)
 }
 load.libraries()
 
@@ -40,147 +41,302 @@ cust_theme<-
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         strip.background = element_blank(),
-        legend.background = element_rect(fill="transparent"),
+        legend.background = element_rect(fill="white"),
         panel.border = element_rect(colour = "black"))+
   #theme(legend.title = element_blank())+
   theme(strip.text.x = element_text(size = 10, colour = "black", face="bold"))
 ###########################################################################
 
+#set the working directory
+
+setwd("C:\\Users\\Katelyn Bosley\\Desktop\\Sigleo_MS\\YB_water_quality\\Analysis")
+
+```
+##Part 1: Water Column Characteristics
+ \ 
+ \
+ \
+Figure 1: Plot showing with daily flow rate and the nitrate concentration/flux across the study period.
+```{r,echo = F, warning = F, comment = F, message=F}
+
+flow<-read.csv("YaquinaFlow98-02_clipped.csv")
+flow$date<-as.Date(flow$date,format="%m/%d/%Y")
+
+#determine the sampling dates
+dat<-read.csv("Y_iso_data_fixed2.csv")
+dat$Date<-as.Date(dat$Date,format="%m/%d/%Y")
+samp.d<-unique(dat$Date)
+
+
+
+#create a plot with both N flux and flow
+
+f.plot<-ggplot(flow, aes(x=date)) +
+  geom_line(aes(y=flow, colour="River Flow"),size=1)+
+  geom_line(aes(y=actual.flux/100, colour="Nitrate Load"), size=1, alpha=0.7)+
+  scale_y_continuous(sec.axis = sec_axis(~.*100,name=expression(paste("Nitrate Load (kg d"^-1," )" ))))+
+  scale_colour_manual(name = "Measurement", values=c("blue","red")) +
+  scale_x_date(breaks = date_breaks("3 months"),
+  labels = date_format("%y-%b"))+
+  geom_vline(dat=samp.d, xintercept=samp.d, col="grey50",lty="longdash",size=0.1)+
+  labs(x="Date (Yr-Mo)",y=expression(paste("Flow (m"^3," s"^-1," )" )))+
+  cust_theme+
+  theme(axis.text.x = element_text(angle = 45,hjust=1))+
+  theme(legend.position = c(0.88, 0.90))
+  #theme(legend.position = "topright")
+f.plot
+
+#png('Flow_plot.png')
+#f.plot
+#dev.off()
+
+```
+\
+Here I created an additional figure to look at all the water column data. I omitted the samples that were taken at odd locations (7.1, 6b, 5b etc).  
+\
+```{r,echo = F, warning = F, comment = F, message=F}
+#set the working directory
 
 # Fix up the station codes
 dat$Station_alt<-as.factor(dat$Station_alt)
 #unique(dat$Station_alt)
 
-```
- \
- \
- \
-
-###Step 1: Begin analysis with a matrix showing biplot of all the important variables to see if anything interesting emerges
-
- \
-
-```{r,echo = F, warning = F, comment = F, message=F}
-
 #select the 
 mat.dat<-dat[,c(3,8,9,10,11,12,13,14)]
 
 #generate pdf with plots
-#pdf("YB_pairs.pdf",paper='letter') 
+#pdf("YB_pairs.pdf") 
 ggpairs(mat.dat)
 #dev.off()
 ```
-
- \ 
- \
- \
-
-##2: Break the data into seasons.\
-Winter = Dec, Jan, Feb \
-Spring = March, Apr, May \
-Summer = June, July, Aug \
-Fall = Sept, Oct, Nov \
-
- \ 
- \ 
- \
- 
- 
+\
+\
+\
+Next, I divided the data into seasons for comparison of water column characteristics. This allows us to boost sample numbers and generate estimates of variance. \
+\
+**Winter** = Dec, Jan, Feb\
+**Spring** = March, Apr, May\
+**Summer** = June, July, Aug\
+**Fall** = Sept, Oct, Nov
 ```{r,echo = F, warning = F, comment = F, message=F}
 #divide the data by season
-dat$season=NA
+dat$Season=NA
 
 for(i in 1:nrow(dat)){
-if(dat$Month[i]=="12" || dat$Month[i]=='1'||dat$Month[i]=='2') {dat$season[i]="Winter"}
+if(dat$Month[i]=="12" || dat$Month[i]=='1'||dat$Month[i]=='2') {dat$Season[i]="Winter"}
   
-if(dat$Month[i]=="3" || dat$Month[i]=='4'||dat$Month[i]=='5') {dat$season[i]="Spring"}
+if(dat$Month[i]=="3" || dat$Month[i]=='4'||dat$Month[i]=='5') {dat$Season[i]="Spring"}
   
-if(dat$Month[i]=="6" || dat$Month[i]=='7'||dat$Month[i]=='8') {dat$season[i]="Summer"}
+if(dat$Month[i]=="6" || dat$Month[i]=='7'||dat$Month[i]=='8') {dat$Season[i]="Summer"}
   
-if(dat$Month[i]=="9" || dat$Month[i]=='10'||dat$Month[i]=='11') {dat$season[i]="Fall"}  
+if(dat$Month[i]=="9" || dat$Month[i]=='10'||dat$Month[i]=='11') {dat$Season[i]="Fall"}  
   
-  }
+}
 
+#melt the data frame for building the plots
+
+dat.temp<-dat[,-c(1,2,22)]
+
+dat.melt<-melt(dat.temp, id=c("Station_alt","Date","Year","Month","Day","Season"))
 ```
-
-\ 
-\
-\
-
-##3: Look at variation by inividual factor
-
 ###Salinity
+\
+\
 ```{r,echo = F, warning = F, comment = F, message=F}
 ##########################
-#Salinity
 
-#build.df
-sal.df<-dat[,c("SampleID","Station_alt","Year","Month","Day","Salinity_ppt","season")]
+#subset the water column characteristics
+dat.wc<-subset(dat.melt,variable==c("Temp_C","Salinity_ppt","Ni_Nitrate","P","Silica"))
 
-#calculate site means by month in each year
-sal.ag<-sal.df %>% group_by(Station_alt,Year)%>%summarize(SampleN=length(Salinity_ppt),mean_sal=mean(Salinity_ppt,na.rm=T),sd_sal=sd(Salinity_ppt, na.rm=T))
-#head(sal.ag)
-sal.ag$Year<-as.factor(sal.ag$Year)
-sal.ag<-na.omit(sal.ag)
-
-#make a nice plot!
-
-#salinity by location and year
-sal.p<-ggplot(sal.ag, aes(x=Station_alt,y=mean_sal,group=Year))+
-  geom_point(aes(col=Year, shape=Year),size = 3)+
-  geom_line(aes(col=Year),linetype = 2)+
-  scale_color_manual(name="Year", values = c("grey20","grey50","grey70"))+
-  ylab("Mean Salinity")+
-  xlab("Station ID")+
-  cust_theme+
-  ggtitle("Mean Annual Salinity")
+sal<-dat.melt[dat.melt$variable=="Salinity_ppt",]
+temp<-dat.melt[dat.melt$variable=="Temp_C",]
+Nitrate<-dat.melt[dat.melt$variable=="Ni_Nitrate",]
+Phos<-dat.melt[dat.melt$variable=="P",]
+Silica<-dat.melt[dat.melt$variable=="Silica",]
+Ammon<-dat.melt[dat.melt$variable=="NH4",]
 
 
-# add in the monthly variation
-#build.df
-sal.ag.mo<-sal.df %>% group_by(Station_alt,Year,Month)%>%summarize(SampleN=length(Salinity_ppt),mean_sal=mean(Salinity_ppt,na.rm=T))
-
-sal.ag.mo$Year<-as.factor(sal.ag.mo$Year)
-sal.ag.mo$Month<-as.factor(sal.ag.mo$Month)
-
-
-sal.mo.p<-ggplot(sal.ag.mo, aes(x=Station_alt,y=mean_sal,group=Month))+
-  geom_point(aes(col=Month),size = 3, shape=8)+
-  geom_line(aes(col=Month),linetype = 1,size=1.2)+
-  #scale_color_manual(name="Year", values = c("grey20","grey50","grey70"))+
-  ylab("Mean Salinity")+
-  xlab("Station ID")+
-  cust_theme+
-  ggtitle("Mean Monthly Salinity")+
-  facet_grid(Year~.)
-
-
+###################
 #Salinity by season
+###################
 
-# add in the monthly variation
-#build.df
-sal.ag.season<-sal.df %>% group_by(Station_alt,Year,season)%>%summarize(SampleN=length(Salinity_ppt),mean_sal=mean(Salinity_ppt,na.rm=T))
+sal_by_season<- sal %>% group_by(Station_alt,Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T))
 
-sal.ag.season$Year<-as.factor(sal.ag.season$Year)
-sal.ag.season$season<-as.factor(sal.ag.season$season)
+sal_by_Year<- sal %>% group_by(Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T),min_var=min(value,na.rm=T), max_var=max(value,na.rm=T))
 
-
-sal.sea.p<-ggplot(sal.ag.season, aes(x=Station_alt,y=mean_sal,group=season))+
-  geom_point(aes(col=season),size = 3, shape=8)+
-  geom_line(aes(col=season),linetype = 1,size=1.2)+
-  #scale_color_manual(name="Year", values = c("grey20","grey50","grey70"))+
-  ylab("Mean Salinity")+
+sal.plot<-ggplot(sal_by_season, aes(x=Station_alt,y=mean_var,group=Season))+
+  geom_point(aes(col=Season,shape=Season),size = 3)+
+  #scale_shape_manual(values=c(16,17,15,8))+
+  geom_line(aes(col=Season),linetype = 1,size=1)+
+  scale_color_grey(name="Season")+
+  ylab("ppt")+
   xlab("Station ID")+
   cust_theme+
-  ggtitle("Mean Seasonal Salinity")+
+  ggtitle("Salinity")+
   facet_grid(Year~.)
 
 
-#generate the plots
-sal.p
+#make a table
+sal.table<-sal_by_Year %>%
+  kable() %>%
+   kable_styling(bootstrap_options = "striped", full_width = F)
 
-sal.mo.p
-
-sal.sea.p
+sal.plot
+sal.table
 
 ```
+###Temperature
+\ 
+\
+```{r,echo = F, warning = F, comment = F, message=F}
+
+temp_by_season<- temp %>% group_by(Station_alt,Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T))
+
+temp_by_Year<- temp %>% group_by(Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T),min_var=min(value,na.rm=T), max_var=max(value,na.rm=T))
+
+temp.plot<-ggplot(temp_by_season, aes(x=Station_alt,y=mean_var,group=Season))+
+  geom_point(aes(col=Season,shape=Season),size = 3)+
+  #scale_shape_manual(values=c(16,17,15,8))+
+  geom_line(aes(col=Season),linetype = 1,size=1)+
+  scale_color_grey(name="Season")+
+  ylab("deg C")+
+  xlab("Station ID")+
+  cust_theme+
+  ggtitle("Temperature")+
+  facet_grid(Year~.)
+
+temp.plot
+temp.table<-temp_by_Year %>%
+  kable() %>%
+   kable_styling(bootstrap_options = "striped", full_width = F)
+temp.table
+```
+###Nitrate
+\
+\
+```{r,echo = F, warning = F, comment = F, message=F}
+###################
+#Nitrate by season
+###################
+
+
+Nit_by_season<- Nitrate %>% group_by(Station_alt,Year,Season,variable)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T))
+
+#Tables to save
+Nit_by_Year<- Nitrate %>% group_by(Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T),min_var=min(value,na.rm=T), max_var=max(value,na.rm=T))
+
+Nit.plot<-ggplot(Nit_by_season, aes(x=Station_alt,y=mean_var,group=Season))+
+  geom_point(aes(col=Season,shape=Season),size = 3)+
+  #scale_shape_manual(values=c(16,17,15,8))+
+  geom_line(aes(col=Season),linetype = 1,size=1)+
+  scale_color_grey(name="Season")+
+  ylab(expression(paste("Nitrate (",mu,"mol ",l^-1,")")))+
+  xlab("Station ID")+
+  cust_theme+
+  ggtitle("Nitrate")+
+  facet_grid(Year~.)
+
+Nit.plot
+Nit.table<-Nit_by_Year %>%
+  kable() %>%
+   kable_styling(bootstrap_options = "striped", full_width = F)
+Nit.table
+
+```
+###Phosphate
+\
+\
+```{r,echo = F, warning = F, comment = F, message=F}
+
+###################
+#P by season
+###################
+Phos_by_season<- Phos %>% group_by(Station_alt,Year,Season,variable)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T))
+
+#Tables to save
+Phos_by_Year<- Phos %>% group_by(Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T),min_var=min(value,na.rm=T), max_var=max(value,na.rm=T))
+
+Phos.plot<-ggplot(Phos_by_season, aes(x=Station_alt,y=mean_var,group=Season))+
+  geom_point(aes(col=Season,shape=Season),size = 3)+
+  #scale_shape_manual(values=c(16,17,15,8))+
+  geom_line(aes(col=Season),linetype = 1,size=1)+
+  scale_color_grey(name="Season")+
+  ylab(expression(paste("Phosphate (",mu,"mol ",l^-1,")")))+
+  xlab("Station ID")+
+  cust_theme+
+  ggtitle("Phosphate")+
+  facet_grid(Year~.)
+
+Phos.plot
+Phos.table<-Phos_by_Year %>%
+  kable() %>%
+   kable_styling(bootstrap_options = "striped", full_width = F)
+Phos.table
+
+```
+###Ammonium
+\
+\
+```{r,echo = F, warning = F, comment = F, message=F}
+###################
+#Ammonium by season
+###################
+Ammon_by_season<- Ammon %>% group_by(Station_alt,Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T))
+
+#Tables to save
+Ammon_by_Year<- Ammon %>% group_by(Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T),min_var=min(value,na.rm=T), max_var=max(value,na.rm=T))
+
+Ammon.plot<-ggplot(Ammon_by_season, aes(x=Station_alt,y=mean_var,group=Season))+
+  geom_point(aes(col=Season,shape=Season),size = 3)+
+  #scale_shape_manual(values=c(16,17,15,8))+
+  geom_line(aes(col=Season),linetype = 1,size=1)+
+  scale_color_grey(name="Season")+
+  ylab(expression(paste("Ammonium (",mu,"mol ",l^-1,")")))+
+  xlab("Station ID")+
+  cust_theme+
+  ggtitle("Phosphate")+
+  facet_grid(Year~.)
+
+Ammon.plot
+Ammon.table<-Ammon_by_Year %>%
+  kable() %>%
+   kable_styling(bootstrap_options = "striped", full_width = F)
+
+Ammon.table
+```
+###Silica
+\
+\
+```{r,echo = F, warning = F, comment = F, message=F}
+###################
+#Silica by season
+###################
+
+
+Silica_by_season<- Silica %>% group_by(Station_alt,Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T))
+
+Silica_by_Year<- Silica %>% group_by(Year,Season)%>%summarize(SampleN=length(value),mean_var=mean(value,na.rm=T),sd_var=sd(value,na.rm = T),min_var=min(value,na.rm=T), max_var=max(value,na.rm=T))
+
+Silica.plot<-ggplot(Silica_by_season, aes(x=Station_alt,y=mean_var,group=Season))+
+  geom_point(aes(col=Season,shape=Season),size = 3)+
+  #scale_shape_manual(values=c(16,17,15,8))+
+  geom_line(aes(col=Season),linetype = 1,size=1)+
+  scale_color_grey(name="Season")+
+  ylab(expression(paste("Silica (",mu,"mol ",l^-1,")")))+
+  xlab("Station ID")+
+  cust_theme+
+  ggtitle("Silica")+
+  facet_grid(Year~.)
+
+Silica.plot
+
+sil.table<-Silica_by_Year %>%
+  kable() %>%
+   kable_styling(bootstrap_options = "striped", full_width = F)
+sil.table
+
+```
+\
+Doing some statistics to match the plots...
+
+
